@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "741378911954",
+    "project_id": "tasksandhabitstracker",
+    "storage_bucket": "tasksandhabitstracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741378911954:android:71c225f35ed15fa9d2070b",
+        "android_client_info": {
+          "package_name": "com.taskshabitsmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCI10l_RA2spwzdLU-obCK7k8sFBUF32u0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:741378911954:android:2a65217273d813c3d2070b",
+        "android_client_info": {
+          "package_name": "com.taskshabitstracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCI10l_RA2spwzdLU-obCK7k8sFBUF32u0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
