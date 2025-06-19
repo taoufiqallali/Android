@@ -5,4 +5,10 @@
     <color name="teal_200">#03DAC5</color>
     <color name="nav_selected">#6200EE</color>
     <color name="nav_unselected">#808080</color>
+    <color name="primary_color">#3F51B5</color> <!-- Indigo for toolbar -->
+    <color name="secondary_color">#F44336</color> <!-- Red for buttons -->
+    <color name="background_color">#F5F5F5</color> <!-- Light gray background -->
+    <color name="surface_color">#FFFFFF</color> <!-- White for bottom nav -->
+    <color name="primary_text_color">#212121</color> <!-- Dark gray for text -->
+    <color name="nav_item_color">@android:color/black</color> <!-- Navigation item color -->
 </resources>

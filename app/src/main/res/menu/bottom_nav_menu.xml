@@ -2,21 +2,18 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:id="@+id/nav_dashboard"
-        android:title="Dashboard"
-        android:icon="@android:drawable/ic_menu_view" />
-
+        android:icon="@drawable/ic_dashboard"
+        android:title="Dashboard" />
     <item
         android:id="@+id/nav_tasks"
-        android:title="Tasks"
-        android:icon="@android:drawable/ic_menu_agenda" />
-
+        android:icon="@drawable/ic_tasks"
+        android:title="Tasks" />
     <item
         android:id="@+id/nav_habits"
-        android:title="Habits"
-        android:icon="@android:drawable/ic_menu_myplaces" />
-
+        android:icon="@drawable/ic_habits"
+        android:title="Habits" />
     <item
         android:id="@+id/nav_profile"
-        android:title="Profile"
-        android:icon="@android:drawable/ic_menu_manage" />
+        android:icon="@drawable/ic_profile"
+        android:title="Profile" />
 </menu>
