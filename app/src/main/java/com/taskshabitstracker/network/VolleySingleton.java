@@ -1,4 +1,4 @@
-package com.taskshabitstracker;
+package com.taskshabitstracker.network;
 
 import android.content.Context;
 import com.android.volley.RequestQueue;

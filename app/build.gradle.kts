@@ -17,6 +17,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    buildFeatures {
+        viewBinding = true
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -38,17 +42,17 @@ dependencies {
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
+    implementation(libs.navigation.fragment)
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
-    implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
-    implementation("com.google.firebase:firebase-analytics")
-    implementation ("com.google.firebase:firebase-auth:22.3.1")
     implementation ("com.android.volley:volley:1.2.1")
     implementation ("com.google.android.material:material:1.12.0")
     implementation ("androidx.recyclerview:recyclerview:1.3.2")
     implementation ("androidx.cardview:cardview:1.0.0")
-
+    implementation ("androidx.navigation:navigation-ui:2.8.0")
 }
+
+
 
 apply(plugin = "com.google.gms.google-services")

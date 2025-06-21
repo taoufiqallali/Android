@@ -5,12 +5,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/habits_container"
     android:layout_width="match_parent"
-    android:layout_height="0dp"
-    android:padding="16dp"
-    app:layout_constraintBottom_toTopOf="@+id/bottomNav"
-    app:layout_constraintEnd_toEndOf="parent"
-    app:layout_constraintStart_toStartOf="parent"
-    app:layout_constraintTop_toBottomOf="@+id/topAppBar">
+    android:layout_height="match_parent"
+    android:padding="16dp">
 
     <!-- Empty State Text -->
     <TextView
@@ -30,8 +26,8 @@
     <!-- RecyclerView for Habits -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/habitsRecyclerView"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         android:background="@android:color/white"
         android:clipToPadding="false"
         android:padding="8dp"
@@ -42,5 +38,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         tools:listitem="@layout/item_habit" />
+
+    <!-- Floating Action Button for Adding Habits -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabAddHabit"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:contentDescription="Add new habit"
+        android:src="@drawable/ic_add"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:tint="@android:color/white" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
