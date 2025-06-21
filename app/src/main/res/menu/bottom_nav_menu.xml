@@ -12,8 +12,5 @@
         android:id="@+id/habitsFragment"
         android:icon="@drawable/ic_habits"
         android:title="Habits" />
-    <item
-        android:id="@+id/profileFragment"
-        android:icon="@drawable/ic_profile"
-        android:title="Profile" />
+
 </menu>

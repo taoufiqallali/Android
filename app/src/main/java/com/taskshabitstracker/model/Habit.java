@@ -1,14 +1,13 @@
 package com.taskshabitstracker.model;
 
 public class Habit {
-    private int id;
+    private String id;
     private String name;
     private String description;
     private int streak;
     private boolean completedToday;
 
-    // Constructor that matches your parsing method
-    public Habit(int id, String name, String description, int streak, boolean completedToday) {
+    public Habit(String id, String name, String description, int streak, boolean completedToday) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -16,17 +15,15 @@ public class Habit {
         this.completedToday = completedToday;
     }
 
-    // Constructor for creating new habits (without id and completion status)
     public Habit(String name, String description) {
         this.name = name;
         this.description = description;
         this.streak = 0;
         this.completedToday = false;
-        this.id = -1; // indicating it's not yet saved to server
+        this.id = null;
     }
 
-    // Getters
-    public int getId() {
+    public String getId() {
         return id;
     }
 
@@ -34,7 +31,6 @@ public class Habit {
         return name;
     }
 
-    // Keep getTitle() for compatibility with your adapter
     public String getTitle() {
         return name;
     }
@@ -51,8 +47,7 @@ public class Habit {
         return completedToday;
     }
 
-    // Setters
-    public void setId(int id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -72,13 +67,11 @@ public class Habit {
         this.completedToday = completedToday;
     }
 
-    // Utility methods
     public void toggleCompletedToday() {
         this.completedToday = !this.completedToday;
         if (this.completedToday) {
             this.streak++;
         } else {
-            // Optionally decrease streak when unchecking
             this.streak = Math.max(0, this.streak - 1);
         }
     }
@@ -94,7 +87,7 @@ public class Habit {
     @Override
     public String toString() {
         return "Habit{" +
-                "id=" + id +
+                "id='" + id + '\'' +
                 ", name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", streak=" + streak +

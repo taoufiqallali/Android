@@ -1,29 +1,26 @@
 package com.taskshabitstracker.model;
 
 public class Task {
-    private int id;
+    private String id;
     private String title;
     private String description;
     private boolean completed;
 
-    // Constructor that matches your parsing method
-    public Task(int id, String title, String description, boolean completed) {
+    public Task(String id, String title, String description, boolean completed) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.completed = completed;
     }
 
-    // Constructor for creating new tasks (without id and completed status)
     public Task(String title, String description) {
         this.title = title;
         this.description = description;
         this.completed = false;
-        this.id = -1; // or 0, indicating it's not yet saved to server
+        this.id = null;
     }
 
-    // Getters
-    public int getId() {
+    public String getId() {
         return id;
     }
 
@@ -39,8 +36,7 @@ public class Task {
         return completed;
     }
 
-    // Setters
-    public void setId(int id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -56,7 +52,6 @@ public class Task {
         this.completed = completed;
     }
 
-    // Toggle completion status
     public void toggleCompleted() {
         this.completed = !this.completed;
     }

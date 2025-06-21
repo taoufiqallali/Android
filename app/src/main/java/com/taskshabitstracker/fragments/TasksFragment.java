@@ -1,12 +1,14 @@
-// TasksFragment.java - Tasks screen as a fragment
 package com.taskshabitstracker.fragments;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -14,11 +16,6 @@ import com.taskshabitstracker.adapters.TaskAdapter;
 import com.taskshabitstracker.databinding.FragmentTasksBinding;
 import com.taskshabitstracker.viewmodel.TasksViewModel;
 
-/**
- * TasksFragment - Displays list of user's tasks
- * Uses RecyclerView with proper adapter pattern
- * Handles task operations through ViewModel
- */
 public class TasksFragment extends Fragment {
     private static final String TAG = "TasksFragment";
 
@@ -36,67 +33,67 @@ public class TasksFragment extends Fragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+        Log.d(TAG, "onViewCreated: Initializing");
 
-        // Initialize ViewModel
         viewModel = new ViewModelProvider(this).get(TasksViewModel.class);
-
-        // Set up RecyclerView
         setupRecyclerView();
-
-        // Set up observers
         setupObservers();
-
-        // Set up FAB
         setupFab();
-
-        // Load tasks
         viewModel.loadTasks();
     }
 
-    /**
-     * Set up RecyclerView with adapter and layout manager
-     */
     private void setupRecyclerView() {
         taskAdapter = new TaskAdapter(
                 task -> viewModel.toggleTaskCompletion(task),
-                task -> viewModel.deleteTask(task)
+                task -> {
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Delete Task")
+                            .setMessage("Are you sure you want to delete \"" + task.getTitle() + "\"?")
+                            .setPositiveButton("Delete", (dialog, which) -> {
+                                viewModel.deleteTask(task, () -> {
+                                    Toast.makeText(getContext(), "Task deleted", Toast.LENGTH_SHORT).show();
+                                }, error -> {
+                                    Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
+                                });
+                            })
+                            .setNegativeButton("Cancel", null)
+                            .show();
+                }
         );
-
         binding.tasksRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         binding.tasksRecyclerView.setAdapter(taskAdapter);
     }
 
-    /**
-     * Set up observers for ViewModel LiveData
-     */
     private void setupObservers() {
-        // Observe tasks list
         viewModel.getTasks().observe(getViewLifecycleOwner(), tasks -> {
+            Log.d(TAG, "Tasks LiveData updated: " + (tasks != null ? tasks.toString() : "null"));
             taskAdapter.updateTasks(tasks);
-
-            // Show/hide empty state
-            if (tasks.isEmpty()) {
-                binding.emptyTextView.setVisibility(View.VISIBLE);
-                binding.tasksRecyclerView.setVisibility(View.GONE);
-            } else {
-                binding.emptyTextView.setVisibility(View.GONE);
-                binding.tasksRecyclerView.setVisibility(View.VISIBLE);
-            }
+            binding.tasksRecyclerView.setVisibility(tasks != null && !tasks.isEmpty() ? View.VISIBLE : View.GONE);
+            binding.emptyTextView.setVisibility(tasks != null && !tasks.isEmpty() ? View.GONE : View.VISIBLE);
         });
 
-        // Observe loading state
         viewModel.getIsLoading().observe(getViewLifecycleOwner(), isLoading -> {
-            // Handle loading state
+            if (isLoading && (viewModel.getTasks().getValue() == null || viewModel.getTasks().getValue().isEmpty())) {
+                binding.progressBar.setVisibility(View.VISIBLE);
+            } else {
+                binding.progressBar.setVisibility(View.GONE);
+            }
+            Log.d(TAG, "Loading state: " + isLoading);
+        });
+
+        viewModel.getErrorMessage().observe(getViewLifecycleOwner(), error -> {
+            if (error != null && !error.isEmpty()) {
+                Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Error: " + error);
+            }
         });
     }
 
-    /**
-     * Set up Floating Action Button
-     */
     private void setupFab() {
         binding.fabAddTask.setOnClickListener(v -> {
-            // TODO: Open add task dialog or navigate to add task screen
-            // AddTaskDialogFragment.newInstance().show(getChildFragmentManager(), "AddTaskDialog");
+            AddTaskDialogFragment dialog = AddTaskDialogFragment.newInstance();
+            dialog.setOnTaskAddedListener(task -> viewModel.addTask(task));
+            dialog.show(getChildFragmentManager(), "AddTaskDialog");
         });
     }
 
