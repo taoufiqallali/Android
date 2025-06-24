@@ -5,64 +5,46 @@ public class Task {
     private String title;
     private String description;
     private boolean completed;
+    private String dueDate;
 
-    public Task(String id, String title, String description, boolean completed) {
-        this.id = id;
-        this.title = title;
-        this.description = description;
-        this.completed = completed;
-    }
-
-    public Task(String title, String description) {
+    // Constructor for creating new tasks
+    public Task(String title, String description, String dueDate) {
+        this.id = java.util.UUID.randomUUID().toString();
         this.title = title;
         this.description = description;
         this.completed = false;
-        this.id = null;
+        this.dueDate = dueDate;
     }
 
-    public String getId() {
-        return id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public boolean isCompleted() {
-        return completed;
-    }
-
-    public void setId(String id) {
+    // Constructor for parsing backend data
+    public Task(String id, String title, String description, boolean completed, String dueDate) {
         this.id = id;
-    }
-
-    public void setTitle(String title) {
         this.title = title;
-    }
-
-    public void setDescription(String description) {
         this.description = description;
-    }
-
-    public void setCompleted(boolean completed) {
         this.completed = completed;
+        this.dueDate = dueDate;
     }
 
-    public void toggleCompleted() {
-        this.completed = !this.completed;
-    }
+    // Getters and setters
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
+    public boolean isCompleted() { return completed; }
+    public void setCompleted(boolean completed) { this.completed = completed; }
+    public String getDueDate() { return dueDate; }
+    public void setDueDate(String dueDate) { this.dueDate = dueDate; }
 
     @Override
     public String toString() {
         return "Task{" +
-                "id=" + id +
+                "id='" + id + '\'' +
                 ", title='" + title + '\'' +
                 ", description='" + description + '\'' +
                 ", completed=" + completed +
+                ", dueDate='" + dueDate + '\'' +
                 '}';
     }
 }

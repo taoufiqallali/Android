@@ -1,12 +1,14 @@
-// MainActivity.java - Simplified main activity that only handles navigation
 package com.taskshabitstracker;
 
 import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.fragment.NavHostFragment;
@@ -14,6 +16,7 @@ import androidx.navigation.ui.NavigationUI;
 import com.taskshabitstracker.databinding.ActivityMainBinding;
 import com.taskshabitstracker.viewmodel.MainViewModel;
 import com.taskshabitstracker.utils.SessionManager;
+import android.content.pm.PackageManager;
 
 /**
  * MainActivity - Entry point of the application
@@ -22,9 +25,11 @@ import com.taskshabitstracker.utils.SessionManager;
  * - Set up navigation between fragments
  * - Manage toolbar and bottom navigation
  * - Handle logout functionality
+ * - Request notification permissions for task deadline reminders
  */
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 100;
 
     // ViewBinding eliminates findViewById calls and provides null safety
     private ActivityMainBinding binding;
@@ -55,6 +60,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Request notification permissions for API 33+
+        requestNotificationPermission();
+
         // Set up UI components
         setupToolbar();
         setupNavigation();
@@ -70,6 +78,20 @@ public class MainActivity extends AppCompatActivity {
 
         // ViewModelProvider ensures ViewModel survives configuration changes
         viewModel = new ViewModelProvider(this).get(MainViewModel.class);
+    }
+
+    /**
+     * Request POST_NOTIFICATIONS permission for Android 13+ (API 33+)
+     */
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                        NOTIFICATION_PERMISSION_REQUEST_CODE);
+            }
+        }
     }
 
     /**

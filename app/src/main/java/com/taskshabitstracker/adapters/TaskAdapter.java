@@ -5,11 +5,15 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import com.taskshabitstracker.databinding.ItemTaskBinding;
 import com.taskshabitstracker.model.Task;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
+import java.util.Locale;
 
 public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder> {
     private static final String TAG = "TaskAdapter";
@@ -67,6 +71,44 @@ public class TaskAdapter extends RecyclerView.Adapter<TaskAdapter.TaskViewHolder
             binding.tvTaskDescription.setText(task.getDescription());
             binding.tvTaskDescription.setVisibility(task.getDescription().isEmpty() ? View.GONE : View.VISIBLE);
             binding.cbTaskCompleted.setChecked(task.isCompleted());
+
+            // Display due date
+            if (task.getDueDate() != null && !task.getDueDate().isEmpty()) {
+                binding.tvDueDate.setText("Due: " + task.getDueDate());
+                binding.tvDueDate.setVisibility(View.VISIBLE);
+
+                // Check if task is overdue - FIXED
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                    Calendar dueDate = Calendar.getInstance();
+                    dueDate.setTime(sdf.parse(task.getDueDate()));
+
+                    Calendar today = Calendar.getInstance();
+                    // Reset time to start of day for accurate comparison
+                    today.set(Calendar.HOUR_OF_DAY, 0);
+                    today.set(Calendar.MINUTE, 0);
+                    today.set(Calendar.SECOND, 0);
+                    today.set(Calendar.MILLISECOND, 0);
+
+                    dueDate.set(Calendar.HOUR_OF_DAY, 0);
+                    dueDate.set(Calendar.MINUTE, 0);
+                    dueDate.set(Calendar.SECOND, 0);
+                    dueDate.set(Calendar.MILLISECOND, 0);
+
+                    if (!task.isCompleted() && dueDate.before(today)) {
+                        // Use ContextCompat for color compatibility - FIXED
+                        binding.tvDueDate.setTextColor(ContextCompat.getColor(binding.getRoot().getContext(), android.R.color.holo_red_dark));
+                    } else {
+                        binding.tvDueDate.setTextColor(ContextCompat.getColor(binding.getRoot().getContext(), android.R.color.black));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing due date", e);
+                    // Set default color on error - FIXED
+                    binding.tvDueDate.setTextColor(ContextCompat.getColor(binding.getRoot().getContext(), android.R.color.black));
+                }
+            } else {
+                binding.tvDueDate.setVisibility(View.GONE);
+            }
 
             binding.cbTaskCompleted.setOnClickListener(v -> {
                 Log.d(TAG, "Toggling task ID: " + task.getId());

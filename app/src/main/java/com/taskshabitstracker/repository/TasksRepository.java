@@ -4,8 +4,6 @@ import android.content.Context;
 import android.util.Log;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
 import com.android.volley.toolbox.JsonArrayRequest;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
@@ -26,8 +24,7 @@ public class TasksRepository {
         requestQueue = VolleySingleton.getInstance(context).getRequestQueue();
     }
 
-    public void getTasks(DashboardRepository.OnSuccessCallback<List<Task>> onSuccess,
-                         DashboardRepository.OnErrorCallback onError) {
+    public void getTasks(OnTasksFetched callback) {
         JsonArrayRequest request = new JsonArrayRequest(
                 Request.Method.GET,
                 BASE_URL,
@@ -36,22 +33,21 @@ public class TasksRepository {
                     try {
                         List<Task> tasks = parseTasksArray(response);
                         Log.d(TAG, "Tasks fetched: " + tasks.size());
-                        onSuccess.onSuccess(tasks);
+                        callback.onSuccess(tasks);
                     } catch (Exception e) {
                         Log.e(TAG, "Error parsing tasks", e);
-                        onError.onError("Error parsing tasks data");
+                        callback.onError("Error parsing tasks data");
                     }
                 },
                 error -> {
                     Log.e(TAG, "Tasks error: " + error.toString());
-                    onError.onError("Failed to load tasks");
+                    callback.onError("Failed to load tasks");
                 }
         );
-
         requestQueue.add(request);
     }
 
-    public void toggleTaskCompletion(Task task, Runnable onSuccess, DashboardRepository.OnErrorCallback onError) {
+    public void toggleTaskCompletion(Task task, Runnable onSuccess, OnErrorCallback onError) {
         String url = BASE_URL + "/" + task.getId() + "/toggle";
 
         JsonObjectRequest request = new JsonObjectRequest(
@@ -71,7 +67,7 @@ public class TasksRepository {
         requestQueue.add(request);
     }
 
-    public void deleteTask(Task task, Runnable onSuccess, DashboardRepository.OnErrorCallback onError) {
+    public void deleteTask(Task task, Runnable onSuccess, OnErrorCallback onError) {
         String url = BASE_URL + "/" + task.getId();
 
         StringRequest request = new StringRequest(
@@ -93,15 +89,23 @@ public class TasksRepository {
         requestQueue.add(request);
     }
 
-    public void addTask(Task task, DashboardRepository.OnSuccessCallback<Task> onSuccess,
-                        DashboardRepository.OnErrorCallback onError) {
+    // FIXED: Improved error handling and null safety
+    public void addTask(Task task, OnTaskAdded callback) {
+        if (task == null) {
+            callback.onError("Task cannot be null");
+            return;
+        }
+
         String url = BASE_URL;
 
         try {
             JSONObject jsonTask = new JSONObject();
-            jsonTask.put("title", task.getTitle());
-            jsonTask.put("description", task.getDescription());
+            jsonTask.put("title", task.getTitle() != null ? task.getTitle() : "");
+            jsonTask.put("description", task.getDescription() != null ? task.getDescription() : "");
             jsonTask.put("completed", task.isCompleted());
+            if (task.getDueDate() != null && !task.getDueDate().trim().isEmpty()) {
+                jsonTask.put("dueDate", task.getDueDate().trim());
+            }
 
             JsonObjectRequest request = new JsonObjectRequest(
                     Request.Method.POST,
@@ -113,25 +117,29 @@ public class TasksRepository {
                                     response.getString("id"),
                                     response.getString("title"),
                                     response.optString("description", ""),
-                                    response.optBoolean("completed", false)
+                                    response.optBoolean("completed", false),
+                                    response.optString("dueDate", "")
                             );
                             Log.d(TAG, "Task added: " + newTask.getId());
-                            onSuccess.onSuccess(newTask);
+                            callback.onTaskAdded(newTask);
                         } catch (Exception e) {
-                            Log.e(TAG, "Error parsing new task", e);
-                            onError.onError("Error parsing new task");
+                            Log.e(TAG, "Error parsing new task response", e);
+                            callback.onError("Error parsing server response");
                         }
                     },
                     error -> {
-                        Log.e(TAG, "Add task error: " + error.toString());
-                        onError.onError("Failed to add task");
+                        Log.e(TAG, "Add task network error: " + error.toString());
+                        if (error.networkResponse != null) {
+                            Log.e(TAG, "Status code: " + error.networkResponse.statusCode);
+                        }
+                        callback.onError("Failed to add task - please check your connection");
                     }
             );
 
             requestQueue.add(request);
         } catch (Exception e) {
             Log.e(TAG, "Error creating JSON for task", e);
-            onError.onError("Error creating task data");
+            callback.onError("Error preparing task data");
         }
     }
 
@@ -143,10 +151,25 @@ public class TasksRepository {
                     taskJson.getString("id"),
                     taskJson.getString("title"),
                     taskJson.optString("description", ""),
-                    taskJson.optBoolean("completed", false)
+                    taskJson.optBoolean("completed", false),
+                    taskJson.optString("dueDate", "")
             );
             tasks.add(task);
         }
         return tasks;
+    }
+
+    public interface OnTasksFetched {
+        void onSuccess(List<Task> tasks);
+        void onError(String error);
+    }
+
+    public interface OnTaskAdded {
+        void onTaskAdded(Task task);
+        void onError(String error);
+    }
+
+    public interface OnErrorCallback {
+        void onError(String error);
     }
 }

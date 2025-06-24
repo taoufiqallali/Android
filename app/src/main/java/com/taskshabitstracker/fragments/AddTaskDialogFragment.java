@@ -9,15 +9,14 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.DialogFragment;
 import com.taskshabitstracker.databinding.DialogAddTaskBinding;
 import com.taskshabitstracker.model.Task;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Locale;
 
-/**
- * Dialog for adding a new task
- */
 public class AddTaskDialogFragment extends DialogFragment {
     private DialogAddTaskBinding binding;
     private OnTaskAddedListener listener;
 
-    // Interface for callback to Fragment
     public interface OnTaskAddedListener {
         void onTaskAdded(Task task);
     }
@@ -43,22 +42,66 @@ public class AddTaskDialogFragment extends DialogFragment {
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-
-        // Set up buttons
         binding.btnSave.setOnClickListener(v -> saveTask());
         binding.btnCancel.setOnClickListener(v -> dismiss());
+        binding.etDueDate.setOnClickListener(v -> showDatePicker());
+    }
+
+    private void showDatePicker() {
+        Calendar calendar = Calendar.getInstance();
+        new android.app.DatePickerDialog(requireContext(),
+                (view, year, month, dayOfMonth) -> {
+                    Calendar selected = Calendar.getInstance();
+                    selected.set(year, month, dayOfMonth);
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                    binding.etDueDate.setText(sdf.format(selected.getTime()));
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)).show();
     }
 
     private void saveTask() {
         String title = binding.etTaskTitle.getText().toString().trim();
         String description = binding.etTaskDescription.getText().toString().trim();
+        String dueDate = binding.etDueDate.getText().toString().trim();
 
         if (title.isEmpty()) {
             binding.etTaskTitle.setError("Title is required");
             return;
         }
 
-        Task task = new Task(title, description);
+        // FIXED: Improved date validation logic
+        if (!dueDate.isEmpty()) {
+            try {
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+                Calendar selectedDate = Calendar.getInstance();
+                selectedDate.setTime(sdf.parse(dueDate));
+
+                Calendar today = Calendar.getInstance();
+                // Reset to start of day for accurate comparison - FIXED
+                today.set(Calendar.HOUR_OF_DAY, 0);
+                today.set(Calendar.MINUTE, 0);
+                today.set(Calendar.SECOND, 0);
+                today.set(Calendar.MILLISECOND, 0);
+
+                selectedDate.set(Calendar.HOUR_OF_DAY, 0);
+                selectedDate.set(Calendar.MINUTE, 0);
+                selectedDate.set(Calendar.SECOND, 0);
+                selectedDate.set(Calendar.MILLISECOND, 0);
+
+                // Allow today's date, only reject past dates - FIXED
+                if (selectedDate.before(today)) {
+                    binding.etDueDate.setError("Due date cannot be in the past");
+                    return;
+                }
+            } catch (Exception e) {
+                binding.etDueDate.setError("Invalid date format");
+                return;
+            }
+        }
+
+        Task task = new Task(title, description, dueDate);
         if (listener != null) {
             listener.onTaskAdded(task);
         }
