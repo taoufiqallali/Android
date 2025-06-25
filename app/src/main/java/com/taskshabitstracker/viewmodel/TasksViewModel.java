@@ -97,8 +97,8 @@ public class TasksViewModel extends AndroidViewModel {
 
                     // If task was just completed, update points and check milestones
                     if (!wasCompleted) {
-                        updateUserPoints(POINTS_PER_COMPLETION, task.getTitle());
-                        updateLocalStreakAndMilestones(task.getTitle());
+                        //updateUserPoints(POINTS_PER_COMPLETION, task.getTitle());
+                        //updateLocalStreakAndMilestones(task.getTitle());
                         cancelNotification(task.getId());
                         addTimelineEvent(task.getId(), "COMPLETED", "Task '" + task.getTitle() + "' completed");
                     }
@@ -218,7 +218,7 @@ public class TasksViewModel extends AndroidViewModel {
         VolleySingleton.getInstance(getApplication()).getRequestQueue().add(request);
     }
 
-    public void deleteTask(Task task, Runnable onSuccess, TasksRepository.OnErrorCallback onError) {
+    public void deleteTask(Task task, Runnable onSuccess, TasksRepository.OnErrorCallback onError,String userId) {
         List<Task> currentTasks = tasks.getValue();
         List<Task> updatedTasks = currentTasks != null ? new ArrayList<>(currentTasks) : new ArrayList<>();
         updatedTasks.removeIf(t -> t.getId().equals(task.getId()));
@@ -233,7 +233,7 @@ public class TasksViewModel extends AndroidViewModel {
                     cancelNotification(task.getId());
                     addTimelineEvent(task.getId(), "DELETED", "Task '" + task.getTitle() + "' deleted");
                     Log.d(TAG, "Task deleted successfully: " + task.getId());
-                    loadTasks(task.getUserId());
+                    loadTasks(userId);
                 },
                 error -> {
                     updatedTasks.add(task);
@@ -246,7 +246,7 @@ public class TasksViewModel extends AndroidViewModel {
         );
     }
 
-    public void addTask(Task task) {
+    public void addTask(Task task,String userId) {
         isLoading.setValue(true);
         repository.addTask(task, new TasksRepository.OnTaskAdded() {
             @Override
@@ -269,7 +269,7 @@ public class TasksViewModel extends AndroidViewModel {
                 errorMessage.setValue(error);
                 Log.e(TAG, "Error adding task: " + error);
             }
-        }, task.getUserId());
+        }, userId);
     }
 
     private void scheduleTaskCreatedNotification(Task task) {
@@ -566,4 +566,6 @@ public class TasksViewModel extends AndroidViewModel {
     public LiveData<List<Task>> getTasks() { return tasks; }
     public LiveData<Boolean> getIsLoading() { return isLoading; }
     public LiveData<String> getErrorMessage() { return errorMessage; }
+
+
 }

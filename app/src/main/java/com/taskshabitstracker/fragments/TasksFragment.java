@@ -59,7 +59,7 @@ public class TasksFragment extends Fragment {
                                     Toast.makeText(getContext(), "Task deleted", Toast.LENGTH_SHORT).show();
                                 }, error -> {
                                     Toast.makeText(getContext(), error, Toast.LENGTH_SHORT).show();
-                                });
+                                },getCurrentUserId());
                             })
                             .setNegativeButton("Cancel", null)
                             .show();
@@ -97,7 +97,7 @@ public class TasksFragment extends Fragment {
     private void setupFab() {
         binding.fabAddTask.setOnClickListener(v -> {
             AddTaskDialogFragment dialog = AddTaskDialogFragment.newInstance();
-            dialog.setOnTaskAddedListener(task -> viewModel.addTask(task));
+            dialog.setOnTaskAddedListener(task -> viewModel.addTask(task,getCurrentUserId()));
             dialog.show(getChildFragmentManager(), "AddTaskDialog");
         });
     }

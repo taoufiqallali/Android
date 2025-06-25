@@ -69,7 +69,7 @@ public class LoginActivity extends AppCompatActivity {
 
                             String message = response.optString("message", "Login successful");
                             String userId = response.optString("userId", null);
-                            String userName = response.optString("name", null);
+                            String userName = response.optString("userName", null);
 
                             // Save userId and name to SharedPreferences
                             SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
@@ -79,6 +79,7 @@ public class LoginActivity extends AppCompatActivity {
                             }
                             if (userName != null) {
                                 editor.putString("userName", userName);
+
                             }
                             editor.apply();
 

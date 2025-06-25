@@ -1,4 +1,3 @@
-// DashboardRepository.java - For dashboard data
 package com.taskshabitstracker.repository;
 
 import android.content.Context;
@@ -20,8 +19,8 @@ public class DashboardRepository {
         requestQueue = VolleySingleton.getInstance(context).getRequestQueue();
     }
 
-    public void getDashboardStats(OnSuccessCallback<DashboardStats> onSuccess, OnErrorCallback onError) {
-        String url = BASE_URL + "/stats";
+    public void getDashboardStats(String userId, OnSuccessCallback<DashboardStats> onSuccess, OnErrorCallback onError) {
+        String url = BASE_URL + "/" + userId + "/stats";
 
         JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.GET,
@@ -33,12 +32,16 @@ public class DashboardRepository {
                         onSuccess.onSuccess(stats);
                     } catch (Exception e) {
                         Log.e(TAG, "Error parsing dashboard stats", e);
-                        onError.onError("Error parsing dashboard data");
+                        onError.onError("Error parsing dashboard data: " + e.getMessage());
                     }
                 },
                 error -> {
+                    String errorMessage = "Failed to load dashboard data";
+                    if (error.networkResponse != null) {
+                        errorMessage += " (Status Code: " + error.networkResponse.statusCode + ")";
+                    }
                     Log.e(TAG, "Dashboard stats error: " + error.toString());
-                    onError.onError("Failed to load dashboard data");
+                    onError.onError(errorMessage);
                 }
         );
 
