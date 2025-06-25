@@ -1,6 +1,7 @@
 package com.taskshabitstracker;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -14,7 +15,6 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.taskshabitstracker.network.VolleySingleton;
-import com.taskshabitstracker.utils.SessionManager;
 
 import org.json.JSONObject;
 
@@ -27,21 +27,11 @@ public class LoginActivity extends AppCompatActivity {
     EditText emailEditText, passwordEditText;
     Button loginButton;
     TextView goToRegisterText;
-    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
-
-        // Use SessionManager instead of direct SharedPreferences
-        sessionManager = new SessionManager(this);
-
-        // Check if user is already logged in
-        if (sessionManager.isUserLoggedIn()) {
-            redirectToMain();
-            return;
-        }
 
         emailEditText = findViewById(R.id.emailEditText);
         passwordEditText = findViewById(R.id.passwordEditText);
@@ -78,20 +68,23 @@ public class LoginActivity extends AppCompatActivity {
                             loginButton.setText("Login");
 
                             String message = response.optString("message", "Login successful");
-                            String sessionId = response.optString("sessionId", null);
+                            String userId = response.optString("userId", null);
+                            String userName = response.optString("name", null);
 
-                            if (sessionId != null && !sessionId.isEmpty()) {
-                                // Use SessionManager to save session consistently
-                                sessionManager.saveSession(email, sessionId);
-
-                                Log.d(TAG, "Login success: " + message);
-                                Log.d(TAG, "Session saved for email: " + email);
-                                Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
-                                redirectToMain();
-                            } else {
-                                Log.e(TAG, "No session ID received from server");
-                                Toast.makeText(LoginActivity.this, "Login failed: No session received", Toast.LENGTH_LONG).show();
+                            // Save userId and name to SharedPreferences
+                            SharedPreferences prefs = getSharedPreferences("app_prefs", MODE_PRIVATE);
+                            SharedPreferences.Editor editor = prefs.edit();
+                            if (userId != null) {
+                                editor.putString("userId", userId);
                             }
+                            if (userName != null) {
+                                editor.putString("userName", userName);
+                            }
+                            editor.apply();
+
+                            Log.d(TAG, "Login success: " + message + ", UserID: " + userId + ", Name: " + userName);
+                            Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
+                            redirectToMain();
                         },
                         error -> {
                             loginButton.setEnabled(true);

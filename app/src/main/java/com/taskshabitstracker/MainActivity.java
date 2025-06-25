@@ -16,7 +16,7 @@ import androidx.navigation.fragment.NavHostFragment;
 import androidx.navigation.ui.NavigationUI;
 import com.taskshabitstracker.databinding.ActivityMainBinding;
 import com.taskshabitstracker.viewmodel.MainViewModel;
-import com.taskshabitstracker.utils.SessionManager;
+
 import android.content.pm.PackageManager;
 
 /**
@@ -42,7 +42,6 @@ public class MainActivity extends AppCompatActivity {
     private NavController navController;
 
     // Session manager handles authentication state
-    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,15 +54,8 @@ public class MainActivity extends AppCompatActivity {
         // Initialize dependencies
         initializeDependencies();
 
-        // Enhanced session validation
-        if (!sessionManager.isUserLoggedIn() || !sessionManager.validateSession()) {
-            Log.w(TAG, "Session validation failed, redirecting to login");
-            sessionManager.logSessionState(); // Debug logging
-            redirectToLogin();
-            return;
-        }
 
-        Log.d(TAG, "Session validation successful for user: " + sessionManager.getUserEmail());
+
 
         // Request notification permissions for API 33+ (required for WorkManager notifications)
         requestNotificationPermission();
@@ -78,12 +70,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
 
-        // Recheck session validity when activity resumes
-        if (!sessionManager.isUserLoggedIn() || !sessionManager.validateSession()) {
-            Log.w(TAG, "Session invalid on resume, redirecting to login");
-            redirectToLogin();
-            return;
-        }
     }
 
     /**
@@ -91,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
      * In a real app, you'd use Dagger/Hilt for this
      */
     private void initializeDependencies() {
-        sessionManager = new SessionManager(this);
+
 
         // ViewModelProvider ensures ViewModel survives configuration changes
         viewModel = new ViewModelProvider(this).get(MainViewModel.class);
@@ -142,11 +128,6 @@ public class MainActivity extends AppCompatActivity {
             navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
                 updateToolbarTitle(destination.getId());
 
-                // Additional session check on navigation
-                if (!sessionManager.isUserLoggedIn()) {
-                    Log.w(TAG, "Session lost during navigation, redirecting to login");
-                    redirectToLogin();
-                }
             });
         }
     }
@@ -225,7 +206,6 @@ public class MainActivity extends AppCompatActivity {
      */
     private void performLogout() {
         Log.d(TAG, "Performing logout");
-        sessionManager.clearSession();
         redirectToLogin();
     }
 

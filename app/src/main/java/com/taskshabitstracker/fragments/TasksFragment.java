@@ -1,5 +1,7 @@
 package com.taskshabitstracker.fragments;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -23,6 +25,8 @@ public class TasksFragment extends Fragment {
     private TasksViewModel viewModel;
     private TaskAdapter taskAdapter;
 
+
+
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -39,7 +43,8 @@ public class TasksFragment extends Fragment {
         setupRecyclerView();
         setupObservers();
         setupFab();
-        viewModel.loadTasks();
+
+        viewModel.loadTasks(getCurrentUserId());
     }
 
     private void setupRecyclerView() {
@@ -101,5 +106,16 @@ public class TasksFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
+    }
+
+    private String getCurrentUserId() {
+        SharedPreferences prefs = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+        String userId = prefs.getString("userId", null);
+        if (userId == null) {
+            Log.e(TAG, "No user ID found in SharedPreferences");
+            // Optionally, trigger a navigation to login screen
+            // For now, return null to let caller handle it
+        }
+        return userId;
     }
 }

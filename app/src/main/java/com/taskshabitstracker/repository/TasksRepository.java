@@ -48,10 +48,11 @@ public class TasksRepository {
         Log.d(TAG, "Saved session ID: " + sessionId);
     }
 
-    public void getTasks(OnTasksFetched callback) {
+    public void getTasks(String userId, OnTasksFetched callback) {
+        String url = BASE_URL + "/user/" + userId;
         JsonArrayRequest request = new JsonArrayRequest(
                 Request.Method.GET,
-                BASE_URL,
+                url,
                 null,
                 response -> {
                     try {
@@ -207,7 +208,7 @@ public class TasksRepository {
         requestQueue.add(request);
     }
 
-    public void addTask(Task task, OnTaskAdded callback) {
+    public void addTask(Task task, OnTaskAdded callback, String userId) {
         if (task == null) {
             callback.onError("Task cannot be null");
             return;
@@ -225,6 +226,7 @@ public class TasksRepository {
             }
             jsonTask.put("enableDueDateNotifications", task.isEnableDueDateNotifications());
             jsonTask.put("enablePreDueNotifications", task.isEnablePreDueNotifications());
+            jsonTask.put("userId", userId);
 
             Log.d(TAG, "POST task request JSON: " + jsonTask.toString());
 
@@ -237,7 +239,7 @@ public class TasksRepository {
                             Log.d(TAG, "POST task response: " + response.toString());
                             Task newTask = new Task(
                                     response.getString("id"),
-                                    response.optString("userId", "default-user"),
+                                    response.optString("userId", userId),
                                     response.getString("title"),
                                     response.optString("description", ""),
                                     response.optBoolean("completed", false),
@@ -330,4 +332,6 @@ public class TasksRepository {
     public interface OnErrorCallback {
         void onError(String error);
     }
+
+
 }

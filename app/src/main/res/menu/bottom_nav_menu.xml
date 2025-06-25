@@ -12,5 +12,5 @@
         android:id="@+id/habitsFragment"
         android:icon="@drawable/ic_habits"
         android:title="Habits" />
-
+    
 </menu>

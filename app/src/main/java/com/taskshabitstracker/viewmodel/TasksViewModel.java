@@ -9,9 +9,9 @@ import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
 import com.android.volley.Request;
+import com.android.volley.toolbox.JsonObjectRequest;
 import com.taskshabitstracker.model.Task;
 import com.taskshabitstracker.repository.TasksRepository;
-import com.taskshabitstracker.network.AuthenticatedJsonRequest;
 import com.taskshabitstracker.network.VolleySingleton;
 import org.json.JSONObject;
 import androidx.work.Data;
@@ -19,7 +19,6 @@ import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import com.taskshabitstracker.workers.NotificationWorker;
-import com.taskshabitstracker.utils.SessionManager;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -27,6 +26,8 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TasksViewModel extends AndroidViewModel {
     private static final String TAG = "TasksViewModel";
@@ -38,23 +39,21 @@ public class TasksViewModel extends AndroidViewModel {
     private static final String USER_URL = "http://10.0.2.2:8080/api/users";
     private static final String TIMELINE_URL = "http://10.0.2.2:8080/api/timeline";
     private final SharedPreferences prefs;
-    private final SessionManager sessionManager;
 
     public TasksViewModel(@NonNull Application application) {
         super(application);
         repository = new TasksRepository(application);
         prefs = application.getSharedPreferences("TasksPrefs", Application.MODE_PRIVATE);
-        sessionManager = new SessionManager(application);
         // Schedule daily streak and inactivity checks
         scheduleStreakAndInactivityCheck();
         // Schedule weekly summary
         scheduleWeeklySummary();
     }
 
-    public void loadTasks() {
-        Log.d(TAG, "Loading tasks from repository");
+    public void loadTasks(String userId) {
+        Log.d(TAG, "Loading tasks from repository for user: " + userId);
         isLoading.setValue(true);
-        repository.getTasks(new TasksRepository.OnTasksFetched() {
+        repository.getTasks(userId, new TasksRepository.OnTasksFetched() {
             @Override
             public void onSuccess(List<Task> taskList) {
                 isLoading.setValue(false);
@@ -67,12 +66,7 @@ public class TasksViewModel extends AndroidViewModel {
             @Override
             public void onError(String error) {
                 isLoading.setValue(false);
-                if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
-                    errorMessage.setValue("Session expired. Please log in again.");
-                    sessionManager.clearSession();
-                } else {
-                    errorMessage.setValue(error);
-                }
+                errorMessage.setValue(error);
                 Log.e(TAG, "Error loading tasks: " + error);
             }
         });
@@ -123,12 +117,7 @@ public class TasksViewModel extends AndroidViewModel {
                         Log.d(TAG, "Task completion reverted: " + task.getId() + " back to " + wasCompleted);
                     }
                     isLoading.setValue(false);
-                    if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
-                        errorMessage.setValue("Session expired. Please log in again.");
-                        sessionManager.clearSession();
-                    } else {
-                        errorMessage.setValue(error);
-                    }
+                    errorMessage.setValue(error);
                     Log.e(TAG, "Error toggling task: " + error);
                 }
         );
@@ -146,8 +135,7 @@ public class TasksViewModel extends AndroidViewModel {
             return;
         }
 
-        AuthenticatedJsonRequest request = new AuthenticatedJsonRequest(
-                getApplication(),
+        JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.PUT,
                 url,
                 jsonBody,
@@ -172,7 +160,14 @@ public class TasksViewModel extends AndroidViewModel {
                     }
                     errorMessage.setValue(errorMsg);
                 }
-        );
+        ) {
+            @Override
+            public Map<String, String> getHeaders() {
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Content-Type", "application/json");
+                return headers;
+            }
+        };
 
         VolleySingleton.getInstance(getApplication()).getRequestQueue().add(request);
     }
@@ -190,8 +185,7 @@ public class TasksViewModel extends AndroidViewModel {
             return;
         }
 
-        AuthenticatedJsonRequest request = new AuthenticatedJsonRequest(
-                getApplication(),
+        JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.POST,
                 TIMELINE_URL,
                 jsonBody,
@@ -212,7 +206,14 @@ public class TasksViewModel extends AndroidViewModel {
                     }
                     errorMessage.setValue(errorMsg);
                 }
-        );
+        ) {
+            @Override
+            public Map<String, String> getHeaders() {
+                Map<String, String> headers = new HashMap<>();
+                headers.put("Content-Type", "application/json");
+                return headers;
+            }
+        };
 
         VolleySingleton.getInstance(getApplication()).getRequestQueue().add(request);
     }
@@ -232,19 +233,14 @@ public class TasksViewModel extends AndroidViewModel {
                     cancelNotification(task.getId());
                     addTimelineEvent(task.getId(), "DELETED", "Task '" + task.getTitle() + "' deleted");
                     Log.d(TAG, "Task deleted successfully: " + task.getId());
-                    loadTasks();
+                    loadTasks(task.getUserId());
                 },
                 error -> {
                     updatedTasks.add(task);
                     tasks.setValue(new ArrayList<>(updatedTasks));
                     Log.d(TAG, "Task deletion reverted: " + task.getId());
                     isLoading.setValue(false);
-                    if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
-                        errorMessage.setValue("Session expired. Please log in again.");
-                        sessionManager.clearSession();
-                    } else {
-                        errorMessage.setValue(error);
-                    }
+                    errorMessage.setValue(error);
                     Log.e(TAG, "Error deleting task: " + error);
                 }
         );
@@ -270,15 +266,10 @@ public class TasksViewModel extends AndroidViewModel {
             @Override
             public void onError(String error) {
                 isLoading.setValue(false);
-                if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
-                    errorMessage.setValue("Session expired. Please log in again.");
-                    sessionManager.clearSession();
-                } else {
-                    errorMessage.setValue(error);
-                }
+                errorMessage.setValue(error);
                 Log.e(TAG, "Error adding task: " + error);
             }
-        });
+        }, task.getUserId());
     }
 
     private void scheduleTaskCreatedNotification(Task task) {
@@ -350,6 +341,7 @@ public class TasksViewModel extends AndroidViewModel {
 
             // Schedule pre-due notification (1 day before)
             if (task.isEnablePreDueNotifications()) {
+                dueCalendar.setTime(dueDate); // Reset calendar to due date
                 dueCalendar.add(Calendar.DAY_OF_MONTH, -1);
                 long preDueDelay = dueCalendar.getTimeInMillis() - System.currentTimeMillis();
                 if (preDueDelay > 0) {
@@ -373,7 +365,6 @@ public class TasksViewModel extends AndroidViewModel {
             Log.e(TAG, "Error scheduling notifications for task: " + task.getId(), e);
         }
     }
-
 
     private void scheduleOverdueNotifications(List<Task> tasks) {
         try {
