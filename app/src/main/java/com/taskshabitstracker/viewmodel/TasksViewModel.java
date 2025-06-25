@@ -1,21 +1,26 @@
 package com.taskshabitstracker.viewmodel;
 
 import android.app.Application;
+import android.content.SharedPreferences;
 import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+
+import com.android.volley.Request;
 import com.taskshabitstracker.model.Task;
 import com.taskshabitstracker.repository.TasksRepository;
-import com.android.volley.Request;
-import com.android.volley.toolbox.JsonObjectRequest;
+import com.taskshabitstracker.network.AuthenticatedJsonRequest;
 import com.taskshabitstracker.network.VolleySingleton;
 import org.json.JSONObject;
 import androidx.work.Data;
 import androidx.work.OneTimeWorkRequest;
+import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 import com.taskshabitstracker.workers.NotificationWorker;
+import com.taskshabitstracker.utils.SessionManager;
+
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -32,10 +37,18 @@ public class TasksViewModel extends AndroidViewModel {
     private static final int POINTS_PER_COMPLETION = 10;
     private static final String USER_URL = "http://10.0.2.2:8080/api/users";
     private static final String TIMELINE_URL = "http://10.0.2.2:8080/api/timeline";
+    private final SharedPreferences prefs;
+    private final SessionManager sessionManager;
 
     public TasksViewModel(@NonNull Application application) {
         super(application);
         repository = new TasksRepository(application);
+        prefs = application.getSharedPreferences("TasksPrefs", Application.MODE_PRIVATE);
+        sessionManager = new SessionManager(application);
+        // Schedule daily streak and inactivity checks
+        scheduleStreakAndInactivityCheck();
+        // Schedule weekly summary
+        scheduleWeeklySummary();
     }
 
     public void loadTasks() {
@@ -46,13 +59,20 @@ public class TasksViewModel extends AndroidViewModel {
             public void onSuccess(List<Task> taskList) {
                 isLoading.setValue(false);
                 tasks.setValue(new ArrayList<>(taskList));
+                // Schedule overdue notifications
+                scheduleOverdueNotifications(taskList);
                 Log.d(TAG, "Tasks loaded: " + taskList.size() + " tasks");
             }
 
             @Override
             public void onError(String error) {
                 isLoading.setValue(false);
-                errorMessage.setValue(error);
+                if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
+                    errorMessage.setValue("Session expired. Please log in again.");
+                    sessionManager.clearSession();
+                } else {
+                    errorMessage.setValue(error);
+                }
                 Log.e(TAG, "Error loading tasks: " + error);
             }
         });
@@ -81,9 +101,10 @@ public class TasksViewModel extends AndroidViewModel {
                     isLoading.setValue(false);
                     Log.d(TAG, "Task completion toggled on server: " + task.getId());
 
-                    // Only update points and cancel notification if task was just completed
-                    if (!wasCompleted) { // Task was just completed
-                        updateUserPoints(POINTS_PER_COMPLETION);
+                    // If task was just completed, update points and check milestones
+                    if (!wasCompleted) {
+                        updateUserPoints(POINTS_PER_COMPLETION, task.getTitle());
+                        updateLocalStreakAndMilestones(task.getTitle());
                         cancelNotification(task.getId());
                         addTimelineEvent(task.getId(), "COMPLETED", "Task '" + task.getTitle() + "' completed");
                     }
@@ -94,7 +115,7 @@ public class TasksViewModel extends AndroidViewModel {
                         List<Task> revertedTasks = new ArrayList<>(currentTasks);
                         for (Task t : revertedTasks) {
                             if (t.getId().equals(task.getId())) {
-                                t.setCompleted(wasCompleted); // Revert to original state
+                                t.setCompleted(wasCompleted);
                                 break;
                             }
                         }
@@ -102,31 +123,54 @@ public class TasksViewModel extends AndroidViewModel {
                         Log.d(TAG, "Task completion reverted: " + task.getId() + " back to " + wasCompleted);
                     }
                     isLoading.setValue(false);
-                    errorMessage.setValue(error);
+                    if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
+                        errorMessage.setValue("Session expired. Please log in again.");
+                        sessionManager.clearSession();
+                    } else {
+                        errorMessage.setValue(error);
+                    }
                     Log.e(TAG, "Error toggling task: " + error);
                 }
         );
     }
 
-    private void updateUserPoints(int pointsToAdd) {
+    private void updateUserPoints(int pointsToAdd, String taskTitle) {
         String url = USER_URL + "/addPoints";
         JSONObject jsonBody = new JSONObject();
         try {
             jsonBody.put("points", pointsToAdd);
+            jsonBody.put("userId", prefs.getString("user_id", "default-user"));
         } catch (Exception e) {
             Log.e(TAG, "Error creating JSON for points update", e);
             errorMessage.setValue("Error updating points");
             return;
         }
 
-        JsonObjectRequest request = new JsonObjectRequest(
+        AuthenticatedJsonRequest request = new AuthenticatedJsonRequest(
+                getApplication(),
                 Request.Method.PUT,
                 url,
                 jsonBody,
-                response -> Log.d(TAG, "Points updated: " + pointsToAdd),
+                response -> {
+                    Log.d(TAG, "Points updated: " + pointsToAdd);
+                    // Schedule points earned notification
+                    schedulePointsNotification(taskTitle, pointsToAdd);
+                },
                 error -> {
-                    Log.e(TAG, "Error updating points: " + error.toString());
-                    errorMessage.setValue("Failed to update points");
+                    String errorMsg = "Failed to update points";
+                    if (error.networkResponse != null) {
+                        Log.e(TAG, "Points update error - Status code: " + error.networkResponse.statusCode);
+                        errorMsg += " (Status code: " + error.networkResponse.statusCode + ")";
+                        if (error.networkResponse.data != null) {
+                            String responseBody = new String(error.networkResponse.data);
+                            Log.e(TAG, "Points update error response body: " + responseBody);
+                            errorMsg += " - " + responseBody;
+                        }
+                    } else {
+                        Log.e(TAG, "Points update error: " + error.toString(), error);
+                        errorMsg += ": " + error.getMessage();
+                    }
+                    errorMessage.setValue(errorMsg);
                 }
         );
 
@@ -146,12 +190,28 @@ public class TasksViewModel extends AndroidViewModel {
             return;
         }
 
-        JsonObjectRequest request = new JsonObjectRequest(
+        AuthenticatedJsonRequest request = new AuthenticatedJsonRequest(
+                getApplication(),
                 Request.Method.POST,
                 TIMELINE_URL,
                 jsonBody,
                 response -> Log.d(TAG, "Timeline event added: " + eventType),
-                error -> Log.e(TAG, "Error adding timeline event: " + error.toString())
+                error -> {
+                    String errorMsg = "Failed to add timeline event";
+                    if (error.networkResponse != null) {
+                        Log.e(TAG, "Timeline event error - Status code: " + error.networkResponse.statusCode);
+                        errorMsg += " (Status code: " + error.networkResponse.statusCode + ")";
+                        if (error.networkResponse.data != null) {
+                            String responseBody = new String(error.networkResponse.data);
+                            Log.e(TAG, "Timeline event error response body: " + responseBody);
+                            errorMsg += " - " + responseBody;
+                        }
+                    } else {
+                        Log.e(TAG, "Timeline event error: " + error.toString(), error);
+                        errorMsg += ": " + error.getMessage();
+                    }
+                    errorMessage.setValue(errorMsg);
+                }
         );
 
         VolleySingleton.getInstance(getApplication()).getRequestQueue().add(request);
@@ -159,11 +219,10 @@ public class TasksViewModel extends AndroidViewModel {
 
     public void deleteTask(Task task, Runnable onSuccess, TasksRepository.OnErrorCallback onError) {
         List<Task> currentTasks = tasks.getValue();
-        Log.d(TAG, "Before removal: " + (currentTasks != null ? currentTasks.size() : "null"));
         List<Task> updatedTasks = currentTasks != null ? new ArrayList<>(currentTasks) : new ArrayList<>();
         updatedTasks.removeIf(t -> t.getId().equals(task.getId()));
         tasks.setValue(updatedTasks);
-        Log.d(TAG, "Task removed locally: " + task.getId() + ", Updated tasks: " + updatedTasks.size());
+        Log.d(TAG, "Task removed locally: " + task.getId());
 
         isLoading.setValue(true);
         repository.deleteTask(task,
@@ -178,9 +237,14 @@ public class TasksViewModel extends AndroidViewModel {
                 error -> {
                     updatedTasks.add(task);
                     tasks.setValue(new ArrayList<>(updatedTasks));
-                    Log.d(TAG, "Task deletion reverted: " + task.getId() + ", Reverted tasks: " + updatedTasks.size());
+                    Log.d(TAG, "Task deletion reverted: " + task.getId());
                     isLoading.setValue(false);
-                    onError.onError(error);
+                    if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
+                        errorMessage.setValue("Session expired. Please log in again.");
+                        sessionManager.clearSession();
+                    } else {
+                        errorMessage.setValue(error);
+                    }
                     Log.e(TAG, "Error deleting task: " + error);
                 }
         );
@@ -197,61 +261,315 @@ public class TasksViewModel extends AndroidViewModel {
                 tasks.setValue(updatedTasks);
                 Log.d(TAG, "Task added locally: " + newTask.getId());
                 isLoading.setValue(false);
-                scheduleNotification(newTask);
+                // Schedule task creation and due date notifications
+                scheduleTaskCreatedNotification(newTask);
+                scheduleDueDateNotifications(newTask);
                 addTimelineEvent(newTask.getId(), "CREATED", "Task '" + newTask.getTitle() + "' created");
             }
 
             @Override
             public void onError(String error) {
                 isLoading.setValue(false);
-                errorMessage.setValue(error);
+                if (error.contains("Session expired") || error.contains("401") || error.contains("403")) {
+                    errorMessage.setValue("Session expired. Please log in again.");
+                    sessionManager.clearSession();
+                } else {
+                    errorMessage.setValue(error);
+                }
                 Log.e(TAG, "Error adding task: " + error);
             }
         });
     }
 
-    private void scheduleNotification(Task task) {
-        if (task.getDueDate() == null || task.getDueDate().isEmpty()) return;
+    private void scheduleTaskCreatedNotification(Task task) {
+        Data inputData = new Data.Builder()
+                .putString("taskId", task.getId())
+                .putString("taskTitle", task.getTitle())
+                .putString("notificationType", "TASK_CREATED")
+                .build();
+
+        OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                .setInputData(inputData)
+                .addTag(task.getId())
+                .build();
+
+        WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+        Log.d(TAG, "Task creation notification scheduled for task: " + task.getId());
+    }
+
+    private void schedulePointsNotification(String taskTitle, int points) {
+        Data inputData = new Data.Builder()
+                .putString("taskTitle", taskTitle)
+                .putInt("points", points)
+                .putString("notificationType", "POINTS_EARNED")
+                .build();
+
+        OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                .setInputData(inputData)
+                .addTag("points_" + taskTitle)
+                .build();
+
+        WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+        Log.d(TAG, "Points notification scheduled for: " + points + " points");
+    }
+
+    private void scheduleDueDateNotifications(Task task) {
+        String dueDateStr = task.getDueDate();
+        if (dueDateStr == null || dueDateStr.isEmpty()) return;
 
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            java.util.Date dueDate = sdf.parse(task.getDueDate());
+            java.util.Date dueDate = sdf.parse(dueDateStr);
             Calendar dueCalendar = Calendar.getInstance();
             dueCalendar.setTime(dueDate);
-            dueCalendar.set(Calendar.HOUR_OF_DAY, 9); // Notify at 9 AM on due date
+            dueCalendar.set(Calendar.HOUR_OF_DAY, 9);
             dueCalendar.set(Calendar.MINUTE, 0);
             dueCalendar.set(Calendar.SECOND, 0);
             dueCalendar.set(Calendar.MILLISECOND, 0);
 
-            long delay = dueCalendar.getTimeInMillis() - System.currentTimeMillis();
+            // Schedule due date notification
+            if (task.isEnableDueDateNotifications()) {
+                long delay = dueCalendar.getTimeInMillis() - System.currentTimeMillis();
+                if (delay > 0) {
+                    Data inputData = new Data.Builder()
+                            .putString("taskId", task.getId())
+                            .putString("taskTitle", task.getTitle())
+                            .putString("notificationType", "DUE_DATE")
+                            .build();
 
-            // Only schedule if the notification time is in the future
-            if (delay <= 0) {
-                Log.d(TAG, "Due date is in the past, not scheduling notification for task: " + task.getId());
-                return;
+                    OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                            .setInputData(inputData)
+                            .addTag(task.getId() + "_due")
+                            .build();
+
+                    WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+                    Log.d(TAG, "Due date notification scheduled for task: " + task.getId());
+                }
             }
 
+            // Schedule pre-due notification (1 day before)
+            if (task.isEnablePreDueNotifications()) {
+                dueCalendar.add(Calendar.DAY_OF_MONTH, -1);
+                long preDueDelay = dueCalendar.getTimeInMillis() - System.currentTimeMillis();
+                if (preDueDelay > 0) {
+                    Data inputData = new Data.Builder()
+                            .putString("taskId", task.getId())
+                            .putString("taskTitle", task.getTitle())
+                            .putString("notificationType", "PRE_DUE")
+                            .build();
+
+                    OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                            .setInitialDelay(preDueDelay, TimeUnit.MILLISECONDS)
+                            .setInputData(inputData)
+                            .addTag(task.getId() + "_pre_due")
+                            .build();
+
+                    WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+                    Log.d(TAG, "Pre-due notification scheduled for task: " + task.getId());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error scheduling notifications for task: " + task.getId(), e);
+        }
+    }
+
+
+    private void scheduleOverdueNotifications(List<Task> tasks) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            Calendar today = Calendar.getInstance();
+            today.set(Calendar.HOUR_OF_DAY, 0);
+            today.set(Calendar.MINUTE, 0);
+            today.set(Calendar.SECOND, 0);
+            today.set(Calendar.MILLISECOND, 0);
+
+            for (Task task : tasks) {
+                String dueDateStr = task.getDueDate();
+                if (dueDateStr == null || dueDateStr.isEmpty() || task.isCompleted() ||
+                        !task.isEnableDueDateNotifications()) {
+                    continue;
+                }
+
+                Calendar dueCalendar = Calendar.getInstance();
+                dueCalendar.setTime(sdf.parse(dueDateStr));
+                dueCalendar.set(Calendar.HOUR_OF_DAY, 0);
+                dueCalendar.set(Calendar.MINUTE, 0);
+                dueCalendar.set(Calendar.SECOND, 0);
+                dueCalendar.set(Calendar.MILLISECOND, 0);
+
+                if (dueCalendar.before(today)) {
+                    // Schedule overdue notification for 9 AM today
+                    Calendar notifyTime = Calendar.getInstance();
+                    notifyTime.set(Calendar.HOUR_OF_DAY, 9);
+                    notifyTime.set(Calendar.MINUTE, 0);
+                    notifyTime.set(Calendar.SECOND, 0);
+                    notifyTime.set(Calendar.MILLISECOND, 0);
+
+                    long delay = notifyTime.getTimeInMillis() - System.currentTimeMillis();
+                    if (delay < 0) delay += 24 * 60 * 60 * 1000; // Next day if past 9 AM
+
+                    Data inputData = new Data.Builder()
+                            .putString("taskId", task.getId())
+                            .putString("taskTitle", task.getTitle())
+                            .putString("notificationType", "OVERDUE")
+                            .build();
+
+                    OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                            .setInputData(inputData)
+                            .addTag(task.getId() + "_overdue")
+                            .build();
+
+                    WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+                    Log.d(TAG, "Overdue notification scheduled for task: " + task.getId());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error scheduling overdue notifications", e);
+        }
+    }
+
+    private void updateLocalStreakAndMilestones(String taskTitle) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+        String today = sdf.format(new java.util.Date());
+        String lastCompletion = prefs.getString("lastTaskCompletionDate", null);
+        int streak = prefs.getInt("streak", 0);
+        int totalTasksCompleted = prefs.getInt("totalTasksCompleted", 0) + 1;
+        int weeklyCompletedTasks = prefs.getInt("weeklyCompletedTasks", 0) + 1;
+        int weeklyPoints = prefs.getInt("weeklyPoints", 0) + POINTS_PER_COMPLETION;
+
+        // Update streak
+        if (lastCompletion != null && lastCompletion.equals(getYesterday(today))) {
+            streak++;
+        } else if (!today.equals(lastCompletion)) {
+            streak = 1; // Reset streak if not consecutive
+        }
+
+        // Save streak, completion date, and weekly stats
+        prefs.edit()
+                .putInt("streak", streak)
+                .putString("lastTaskCompletionDate", today)
+                .putInt("totalTasksCompleted", totalTasksCompleted)
+                .putInt("weeklyCompletedTasks", weeklyCompletedTasks)
+                .putInt("weeklyPoints", weeklyPoints)
+                .apply();
+
+        // Schedule streak notification
+        if (prefs.getBoolean("enableStreakNotifications", true)) {
             Data inputData = new Data.Builder()
-                    .putString("taskId", task.getId())
-                    .putString("taskTitle", task.getTitle())
+                    .putString("taskTitle", taskTitle)
+                    .putInt("streak", streak)
+                    .putString("notificationType", "STREAK")
                     .build();
 
             OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
-                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
                     .setInputData(inputData)
-                    .addTag(task.getId())
+                    .addTag("streak_" + today)
                     .build();
 
             WorkManager.getInstance(getApplication()).enqueue(notificationWork);
-            Log.d(TAG, "Notification scheduled for task: " + task.getId() + " in " + delay + "ms");
+            Log.d(TAG, "Streak notification scheduled: " + streak + " days");
+        }
+
+        // Check milestones
+        if (prefs.getBoolean("enableMilestoneNotifications", true) &&
+                (totalTasksCompleted == 10 || totalTasksCompleted == 50 || totalTasksCompleted == 100)) {
+            Data inputData = new Data.Builder()
+                    .putString("taskTitle", taskTitle)
+                    .putInt("totalTasksCompleted", totalTasksCompleted)
+                    .putString("notificationType", "MILESTONE")
+                    .build();
+
+            OneTimeWorkRequest notificationWork = new OneTimeWorkRequest.Builder(NotificationWorker.class)
+                    .setInputData(inputData)
+                    .addTag("milestone_" + totalTasksCompleted)
+                    .build();
+
+            WorkManager.getInstance(getApplication()).enqueue(notificationWork);
+            Log.d(TAG, "Milestone notification scheduled: " + totalTasksCompleted + " tasks");
+        }
+    }
+
+    private void scheduleStreakAndInactivityCheck() {
+        // Schedule daily check for streak at risk and inactivity
+        PeriodicWorkRequest streakCheck = new PeriodicWorkRequest.Builder(NotificationWorker.class,
+                24, TimeUnit.HOURS)
+                .setInitialDelay(calculateDelayTo8AM(), TimeUnit.MILLISECONDS)
+                .setInputData(new Data.Builder().putString("notificationType", "STREAK_CHECK").build())
+                .addTag("streak_check")
+                .build();
+
+        PeriodicWorkRequest inactivityCheck = new PeriodicWorkRequest.Builder(NotificationWorker.class,
+                24, TimeUnit.HOURS)
+                .setInitialDelay(calculateDelayTo8AM(), TimeUnit.MILLISECONDS)
+                .setInputData(new Data.Builder().putString("notificationType", "INACTIVITY").build())
+                .addTag("inactivity_check")
+                .build();
+
+        WorkManager.getInstance(getApplication()).enqueue(streakCheck);
+        WorkManager.getInstance(getApplication()).enqueue(inactivityCheck);
+        Log.d(TAG, "Daily streak and inactivity checks scheduled");
+    }
+
+    private void scheduleWeeklySummary() {
+        // Schedule weekly summary on Sunday at 9 AM
+        PeriodicWorkRequest summaryWork = new PeriodicWorkRequest.Builder(NotificationWorker.class,
+                7, TimeUnit.DAYS)
+                .setInitialDelay(calculateDelayToSunday9AM(), TimeUnit.MILLISECONDS)
+                .setInputData(new Data.Builder().putString("notificationType", "WEEKLY_SUMMARY").build())
+                .addTag("weekly_summary")
+                .build();
+
+        WorkManager.getInstance(getApplication()).enqueue(summaryWork);
+        Log.d(TAG, "Weekly summary scheduled");
+    }
+
+    private long calculateDelayTo8AM() {
+        Calendar now = Calendar.getInstance();
+        Calendar next8AM = Calendar.getInstance();
+        next8AM.set(Calendar.HOUR_OF_DAY, 8);
+        next8AM.set(Calendar.MINUTE, 0);
+        next8AM.set(Calendar.SECOND, 0);
+        next8AM.set(Calendar.MILLISECOND, 0);
+        if (now.after(next8AM)) {
+            next8AM.add(Calendar.DAY_OF_MONTH, 1);
+        }
+        return next8AM.getTimeInMillis() - now.getTimeInMillis();
+    }
+
+    private long calculateDelayToSunday9AM() {
+        Calendar now = Calendar.getInstance();
+        Calendar nextSunday9AM = Calendar.getInstance();
+        nextSunday9AM.set(Calendar.DAY_OF_WEEK, Calendar.SUNDAY);
+        nextSunday9AM.set(Calendar.HOUR_OF_DAY, 9);
+        nextSunday9AM.set(Calendar.MINUTE, 0);
+        nextSunday9AM.set(Calendar.SECOND, 0);
+        nextSunday9AM.set(Calendar.MILLISECOND, 0);
+        if (now.after(nextSunday9AM)) {
+            nextSunday9AM.add(Calendar.WEEK_OF_YEAR, 1);
+        }
+        return nextSunday9AM.getTimeInMillis() - now.getTimeInMillis();
+    }
+
+    private String getYesterday(String today) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(sdf.parse(today));
+            cal.add(Calendar.DAY_OF_MONTH, -1);
+            return sdf.format(cal.getTime());
         } catch (Exception e) {
-            Log.e(TAG, "Error scheduling notification for task: " + task.getId(), e);
+            return null;
         }
     }
 
     private void cancelNotification(String taskId) {
         WorkManager.getInstance(getApplication()).cancelAllWorkByTag(taskId);
-        Log.d(TAG, "Notification cancelled for task: " + taskId);
+        WorkManager.getInstance(getApplication()).cancelAllWorkByTag(taskId + "_due");
+        WorkManager.getInstance(getApplication()).cancelAllWorkByTag(taskId + "_pre_due");
+        WorkManager.getInstance(getApplication()).cancelAllWorkByTag(taskId + "_overdue");
+        Log.d(TAG, "Notifications cancelled for task: " + taskId);
     }
 
     public LiveData<List<Task>> getTasks() { return tasks; }

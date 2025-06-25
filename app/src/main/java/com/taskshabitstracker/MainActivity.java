@@ -3,6 +3,7 @@ package com.taskshabitstracker;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import androidx.annotation.NonNull;
@@ -22,10 +23,10 @@ import android.content.pm.PackageManager;
  * MainActivity - Entry point of the application
  * Responsibilities:
  * - Handle authentication check
- * - Set up navigation between fragments
+ * - Set up navigation between fragments (Dashboard, Tasks, Habits, Profile, Settings)
  * - Manage toolbar and bottom navigation
  * - Handle logout functionality
- * - Request notification permissions for task deadline reminders
+ * - Request notification permissions for task deadline reminders and other local notifications
  */
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -54,19 +55,35 @@ public class MainActivity extends AppCompatActivity {
         // Initialize dependencies
         initializeDependencies();
 
-        // Check authentication before proceeding
-        if (!sessionManager.isUserLoggedIn()) {
+        // Enhanced session validation
+        if (!sessionManager.isUserLoggedIn() || !sessionManager.validateSession()) {
+            Log.w(TAG, "Session validation failed, redirecting to login");
+            sessionManager.logSessionState(); // Debug logging
             redirectToLogin();
             return;
         }
 
-        // Request notification permissions for API 33+
+        Log.d(TAG, "Session validation successful for user: " + sessionManager.getUserEmail());
+
+        // Request notification permissions for API 33+ (required for WorkManager notifications)
         requestNotificationPermission();
 
         // Set up UI components
         setupToolbar();
         setupNavigation();
         setupObservers();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Recheck session validity when activity resumes
+        if (!sessionManager.isUserLoggedIn() || !sessionManager.validateSession()) {
+            Log.w(TAG, "Session invalid on resume, redirecting to login");
+            redirectToLogin();
+            return;
+        }
     }
 
     /**
@@ -108,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Set up navigation using Navigation Component
-     * This replaces the manual view management with proper fragment navigation
+     * Connects bottom navigation and toolbar actions to fragments
      */
     private void setupNavigation() {
         // Get NavHostFragment - this hosts all our fragments
@@ -119,33 +136,46 @@ public class MainActivity extends AppCompatActivity {
             navController = navHostFragment.getNavController();
 
             // Connect bottom navigation with NavController
-            // This automatically handles fragment switching
             NavigationUI.setupWithNavController(binding.bottomNav, navController);
 
             // Listen for destination changes to update toolbar title
             navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
                 updateToolbarTitle(destination.getId());
+
+                // Additional session check on navigation
+                if (!sessionManager.isUserLoggedIn()) {
+                    Log.w(TAG, "Session lost during navigation, redirecting to login");
+                    redirectToLogin();
+                }
             });
         }
     }
 
     /**
      * Set up observers for ViewModel LiveData
-     * This follows MVVM pattern for reactive UI updates
+     * Follows MVVM pattern for reactive UI updates
      */
     private void setupObservers() {
         // Observe logout state
         viewModel.getLogoutState().observe(this, isLoggingOut -> {
             if (isLoggingOut != null && isLoggingOut) {
-                redirectToLogin();
+                performLogout();
             }
         });
 
         // Observe error messages
         viewModel.getErrorMessage().observe(this, errorMessage -> {
             if (errorMessage != null && !errorMessage.isEmpty()) {
-                // Show error to user (you can use Snackbar here)
-                // Snackbar.make(binding.getRoot(), errorMessage, Snackbar.LENGTH_LONG).show();
+                // Check if error is session-related
+                if (errorMessage.toLowerCase().contains("session") ||
+                        errorMessage.toLowerCase().contains("unauthorized") ||
+                        errorMessage.toLowerCase().contains("expired")) {
+                    Log.w(TAG, "Session-related error detected: " + errorMessage);
+                    performLogout();
+                } else {
+                    // Show error to user (consider using Snackbar for better UX)
+                    android.widget.Toast.makeText(this, errorMessage, android.widget.Toast.LENGTH_LONG).show();
+                }
             }
         });
     }
@@ -162,8 +192,8 @@ public class MainActivity extends AppCompatActivity {
             title = "Tasks";
         } else if (destinationId == R.id.habitsFragment) {
             title = "Habits";
-        } else if (destinationId == R.id.profileFragment) {
-            title = "Profile";
+        } else if (destinationId == R.id.settingsFragment) {
+            title = "Settings";
         } else {
             title = "Tasks & Habits Tracker";
         }
@@ -181,7 +211,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.action_logout) {
+        int itemId = item.getItemId();
+        if (itemId == R.id.action_logout) {
             // Delegate logout to ViewModel
             viewModel.logout();
             return true;
@@ -190,9 +221,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * Perform logout operations
+     */
+    private void performLogout() {
+        Log.d(TAG, "Performing logout");
+        sessionManager.clearSession();
+        redirectToLogin();
+    }
+
+    /**
      * Redirect to login activity and clear current activity stack
      */
     private void redirectToLogin() {
+        Log.d(TAG, "Redirecting to login");
         Intent intent = new Intent(this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);

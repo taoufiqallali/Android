@@ -1,7 +1,6 @@
 package com.taskshabitstracker;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
@@ -15,6 +14,7 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.taskshabitstracker.network.VolleySingleton;
+import com.taskshabitstracker.utils.SessionManager;
 
 import org.json.JSONObject;
 
@@ -23,24 +23,22 @@ import java.util.Map;
 
 public class LoginActivity extends AppCompatActivity {
     private static final String TAG = "LoginActivity";
-    private static final String PREFS_NAME = "TasksHabitsPrefs";
-    private static final String EMAIL_KEY = "user_email";
-    private static final String SESSION_KEY = "user_session";
 
     EditText emailEditText, passwordEditText;
     Button loginButton;
     TextView goToRegisterText;
-    private SharedPreferences sharedPreferences;
+    private SessionManager sessionManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        sharedPreferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        // Use SessionManager instead of direct SharedPreferences
+        sessionManager = new SessionManager(this);
 
         // Check if user is already logged in
-        if (isUserLoggedIn()) {
+        if (sessionManager.isUserLoggedIn()) {
             redirectToMain();
             return;
         }
@@ -81,16 +79,19 @@ public class LoginActivity extends AppCompatActivity {
 
                             String message = response.optString("message", "Login successful");
                             String sessionId = response.optString("sessionId", null);
-                            if (sessionId != null) {
-                                SharedPreferences.Editor editor = sharedPreferences.edit();
-                                editor.putString(SESSION_KEY, sessionId);
-                                editor.apply();
-                            }
 
-                            Log.d(TAG, "Login success: " + message);
-                            Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
-                            saveUserSession(email);
-                            redirectToMain();
+                            if (sessionId != null && !sessionId.isEmpty()) {
+                                // Use SessionManager to save session consistently
+                                sessionManager.saveSession(email, sessionId);
+
+                                Log.d(TAG, "Login success: " + message);
+                                Log.d(TAG, "Session saved for email: " + email);
+                                Toast.makeText(LoginActivity.this, message, Toast.LENGTH_SHORT).show();
+                                redirectToMain();
+                            } else {
+                                Log.e(TAG, "No session ID received from server");
+                                Toast.makeText(LoginActivity.this, "Login failed: No session received", Toast.LENGTH_LONG).show();
+                            }
                         },
                         error -> {
                             loginButton.setEnabled(true);
@@ -134,24 +135,10 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
-    private boolean isUserLoggedIn() {
-        String email = sharedPreferences.getString(EMAIL_KEY, null);
-        String session = sharedPreferences.getString(SESSION_KEY, null);
-        return email != null && !email.isEmpty() && session != null && !session.isEmpty();
-    }
-
-    private void saveUserSession(String email) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString(EMAIL_KEY, email);
-        editor.apply();
-    }
-
-    private void extractSessionFromHeaders() {
-        Log.d(TAG, "Session cookies handled by VolleySingleton's CookieManager");
-    }
-
     private void redirectToMain() {
-        startActivity(new Intent(LoginActivity.this, MainActivity.class));
+        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
         finish();
     }
 }
