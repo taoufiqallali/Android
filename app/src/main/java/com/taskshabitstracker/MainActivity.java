@@ -18,6 +18,7 @@ import com.taskshabitstracker.databinding.ActivityMainBinding;
 import com.taskshabitstracker.viewmodel.MainViewModel;
 
 import android.content.pm.PackageManager;
+import android.widget.Toast;
 
 /**
  * MainActivity - Entry point of the application
@@ -72,6 +73,9 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+
+
+
     /**
      * Initialize all dependencies using proper dependency injection pattern
      * In a real app, you'd use Dagger/Hilt for this
@@ -96,6 +100,9 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+
+
 
     /**
      * Set up the toolbar with proper configuration

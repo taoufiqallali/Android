@@ -18,11 +18,15 @@ import androidx.work.Data;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
+
+import com.taskshabitstracker.utils.NotificationHelper;
 import com.taskshabitstracker.workers.NotificationWorker;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -258,8 +262,10 @@ public class TasksViewModel extends AndroidViewModel {
                 Log.d(TAG, "Task added locally: " + newTask.getId());
                 isLoading.setValue(false);
                 // Schedule task creation and due date notifications
-                scheduleTaskCreatedNotification(newTask);
-                scheduleDueDateNotifications(newTask);
+//                scheduleTaskCreatedNotification(newTask);
+//                scheduleDueDateNotifications(newTask);
+                 scheduleNotifications(newTask);
+
                 addTimelineEvent(newTask.getId(), "CREATED", "Task '" + newTask.getTitle() + "' created");
             }
 
@@ -271,6 +277,41 @@ public class TasksViewModel extends AndroidViewModel {
             }
         }, userId);
     }
+
+    private void scheduleNotifications(Task task) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            Date today = sdf.parse(sdf.format(new Date()));
+            Date taskDate = sdf.parse(task.getDueDate()); // Assure-toi que task.getDueDate() est bien au format "yyyy-MM-dd"
+
+            long diffInMillis = taskDate.getTime() - today.getTime();
+            long diffInDays = TimeUnit.MILLISECONDS.toDays(diffInMillis);
+
+            if (diffInDays == 1) {
+                // 🔔 Notify now: task is tomorrow
+                NotificationHelper.sendImmediateNotification(
+                        getApplication(),
+                        "Rappel de tâche",
+                        "La tâche '" + task.getTitle() + "' est prévue pour demain !"
+                );
+            } else if (diffInDays > 1) {
+                // 🕓 Schedule notification for (taskDate - 1 day)
+                long delayInMinutes = (diffInDays - 1) * 24 * 60;
+                NotificationHelper.scheduleNotificationWithWorkManager(
+                        getApplication(),
+                        delayInMinutes,
+                        "Rappel de tâche",
+                        "La tâche '" + task.getTitle() + "' est prévue pour demain !"
+                );
+            }
+
+        } catch (ParseException e) {
+            Log.e(TAG, "Date parsing error: " + e.getMessage());
+        }
+    }
+
+
+
 
     private void scheduleTaskCreatedNotification(Task task) {
         Data inputData = new Data.Builder()
