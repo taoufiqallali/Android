@@ -4,15 +4,16 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
-import com.taskshabitstracker.databinding.DialogAddHabitBinding;
 import com.taskshabitstracker.model.Habit;
+import com.taskshabitstracker.R;
 
 public class AddHabitDialogFragment extends BottomSheetDialogFragment {
-    private DialogAddHabitBinding binding;
-    private OnHabitAddedListener onHabitAddedListener;
+    private OnHabitAddedListener listener;
 
     public interface OnHabitAddedListener {
         void onHabitAdded(Habit habit);
@@ -23,42 +24,27 @@ public class AddHabitDialogFragment extends BottomSheetDialogFragment {
     }
 
     public void setOnHabitAddedListener(OnHabitAddedListener listener) {
-        this.onHabitAddedListener = listener;
+        this.listener = listener;
     }
 
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
-        binding = DialogAddHabitBinding.inflate(inflater, container, false);
-        return binding.getRoot();
-    }
+        View view = inflater.inflate(R.layout.dialog_add_habit, container, false);
+        EditText nameInput = view.findViewById(R.id.habit_name_input);
+        EditText descriptionInput = view.findViewById(R.id.habit_description_input);
+        Button saveButton = view.findViewById(R.id.save_habit_button);
 
-    @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-
-        binding.btnSave.setOnClickListener(v -> {
-            String name = binding.etHabitName.getText().toString().trim();
-            String description = binding.etHabitDescription.getText().toString().trim();
-
-            if (name.isEmpty()) {
-                binding.etHabitName.setError("Habit name is required");
-                return;
+        saveButton.setOnClickListener(v -> {
+            String name = nameInput.getText().toString().trim();
+            String description = descriptionInput.getText().toString().trim();
+            if (!name.isEmpty()) {
+                Habit habit = new Habit("", name, description, 0, false);
+                listener.onHabitAdded(habit);
+                dismiss();
             }
-
-            Habit habit = new Habit(name, description);
-            if (onHabitAddedListener != null) {
-                onHabitAddedListener.onHabitAdded(habit);
-            }
-            dismiss();
         });
 
-        binding.btnCancel.setOnClickListener(v -> dismiss());
-    }
-
-    @Override
-    public void onDestroyView() {
-        super.onDestroyView();
-        binding = null;
+        return view;
     }
 }

@@ -13,6 +13,7 @@ import com.android.volley.toolbox.StringRequest;
 import com.taskshabitstracker.model.Task;
 import com.taskshabitstracker.network.VolleySingleton;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -105,8 +106,9 @@ public class TasksRepository {
         requestQueue.add(request);
     }
 
-    public void toggleTaskCompletion(Task task, Runnable onSuccess, OnErrorCallback onError) {
+    public void toggleTaskCompletion(Task task, Runnable onSuccess, OnErrorCallback onError) throws JSONException {
         String url = BASE_URL + "/" + task.getId() + "/toggle";
+        JSONObject jsonBody = new JSONObject();
 
         JsonObjectRequest request = new JsonObjectRequest(
                 Request.Method.PUT,

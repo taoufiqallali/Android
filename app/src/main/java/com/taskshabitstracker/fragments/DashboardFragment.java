@@ -15,16 +15,28 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.navigation.NavController;
 import androidx.navigation.Navigation;
+import androidx.navigation.fragment.NavHostFragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+
+import com.taskshabitstracker.model.Reminder;
+import com.taskshabitstracker.adapters.ReminderAdapter;
 import com.taskshabitstracker.LoginActivity;
 import com.taskshabitstracker.R;
+import com.taskshabitstracker.viewmodel.TasksViewModel;
 import com.taskshabitstracker.databinding.FragmentDashboardBinding;
 import com.taskshabitstracker.repository.AuthRepository;
 import com.taskshabitstracker.repository.UserRepository;
 import com.taskshabitstracker.viewmodel.DashboardViewModel;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import com.taskshabitstracker.model.Task;
 /**
  * DashboardFragment - Main dashboard screen
  * Shows overview of user's tasks, habits, and statistics
@@ -38,7 +50,7 @@ public class DashboardFragment extends Fragment {
 
     // ViewModel for dashboard-specific logic
     private DashboardViewModel viewModel;
-
+    private TasksViewModel taskViewModel;
     // NavController for navigation
     private NavController navController;
 
@@ -51,7 +63,45 @@ public class DashboardFragment extends Fragment {
                              Bundle savedInstanceState) {
         // Inflate layout using ViewBinding
         binding = FragmentDashboardBinding.inflate(inflater, container, false);
+
+        navController = NavHostFragment.findNavController(this);
+
+
+        // Initialize ViewModel
+        taskViewModel = new ViewModelProvider(this).get(TasksViewModel.class);
+
+        // Set up RecyclerView
+        binding.remindersRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        ReminderAdapter adapter = new ReminderAdapter(new ArrayList<>());
+        binding.remindersRecyclerView.setAdapter(adapter);
+
+        // Get userId from AuthRepository
+        String userId = getCurrentUserId(); // Replace with your method
+
+        // Load tasks and observe LiveData
+        taskViewModel.loadTasks(userId);
+        taskViewModel.getTasks().observe(getViewLifecycleOwner(), tasks -> {
+            // Convert tasks to reminders
+            List<Reminder> reminders = new ArrayList<>();
+// Assuming reminders is populated with Task-to-Reminder mappings
+
+            for (Task task : tasks) {
+                if(!task.isCompleted()){
+                reminders.add(new Reminder(task.getTitle(), task.getDueDate()));}
+            }
+
+            // Update adapter
+            ReminderAdapter adapter1 = new ReminderAdapter(reminders);
+            binding.remindersRecyclerView.setAdapter(adapter1);
+
+            // Toggle visibility of noRemindersText
+            binding.noRemindersText.setVisibility(reminders.isEmpty() ? View.VISIBLE : View.GONE);
+
+            Log.d(TAG, "RecyclerView updated with " + reminders.size() + " tasks");
+        });
         return binding.getRoot();
+
+
     }
 
     @Override
@@ -122,36 +172,36 @@ public class DashboardFragment extends Fragment {
      * Set up click listeners for dashboard buttons
      */
     private void setupClickListeners() {
-        binding.addTaskButton.setOnClickListener(v -> {
-            if (navController.getCurrentDestination().getId() == R.id.dashboardFragment) {
-                navController.navigate(R.id.action_dashboard_to_tasks);
-            } else {
-                Toast.makeText(getContext(), "Navigation to Add Task failed", Toast.LENGTH_SHORT).show();
-            }
-        });
+//        binding.addTaskButton.setOnClickListener(v -> {
+//            if (navController.getCurrentDestination().getId() == R.id.dashboardFragment) {
+//                navController.navigate(R.id.action_dashboard_to_tasks);
+//            } else {
+//                Toast.makeText(getContext(), "Navigation to Add Task failed", Toast.LENGTH_SHORT).show();
+//            }
+//        });
 
-        binding.addHabitButton.setOnClickListener(v -> {
-            if (navController.getCurrentDestination().getId() == R.id.dashboardFragment) {
-                navController.navigate(R.id.action_dashboard_to_habits);
-            } else {
-                Toast.makeText(getContext(), "Navigation to Add Habit failed", Toast.LENGTH_SHORT).show();
-            }
-        });
+//        binding.addHabitButton.setOnClickListener(v -> {
+//            if (navController.getCurrentDestination().getId() == R.id.dashboardFragment) {
+//                navController.navigate(R.id.action_dashboard_to_habits);
+//            } else {
+//                Toast.makeText(getContext(), "Navigation to Add Habit failed", Toast.LENGTH_SHORT).show();
+//            }
+//        });
 
-        binding.logoutButton.setOnClickListener(v -> {
-            authRepository.logout(
-                    () -> {
-                        // Clear SharedPreferences
-                        SharedPreferences prefs = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
-                        prefs.edit().clear().apply();
-                        // Navigate to LoginActivity
-                        Intent intent = new Intent(getContext(), LoginActivity.class);
-                        startActivity(intent);
-                        requireActivity().finish(); // Close the current activity
-                    },
-                    error -> Toast.makeText(getContext(), "Logout failed: " + error, Toast.LENGTH_LONG).show()
-            );
-        });
+//        binding.logoutButton.setOnClickListener(v -> {
+//            authRepository.logout(
+//                    () -> {
+//                        // Clear SharedPreferences
+//                        SharedPreferences prefs = requireContext().getSharedPreferences("app_prefs", Context.MODE_PRIVATE);
+//                        prefs.edit().clear().apply();
+//                        // Navigate to LoginActivity
+//                        Intent intent = new Intent(getContext(), LoginActivity.class);
+//                        startActivity(intent);
+//                        requireActivity().finish(); // Close the current activity
+//                    },
+//                    error -> Toast.makeText(getContext(), "Logout failed: " + error, Toast.LENGTH_LONG).show()
+//            );
+//        });
     }
 
     /**

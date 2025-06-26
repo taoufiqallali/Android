@@ -1,45 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:orientation="vertical"
     android:padding="16dp">
 
     <EditText
-        android:id="@+id/etHabitName"
-        android:layout_width="0dp"
+        android:id="@+id/habit_name_input"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Habit Name"
-        android:inputType="text"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:hint="Habit Name" />
 
     <EditText
-        android:id="@+id/etHabitDescription"
-        android:layout_width="0dp"
+        android:id="@+id/habit_description_input"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Description (optional)"
-        android:inputType="textMultiLine"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/etHabitName" />
+        android:hint="Description" />
 
     <Button
-        android:id="@+id/btnSave"
+        android:id="@+id/save_habit_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Save"
-        app:layout_constraintEnd_toStartOf="@id/btnCancel"
-        app:layout_constraintTop_toBottomOf="@id/etHabitDescription" />
-
-    <Button
-        android:id="@+id/btnCancel"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Cancel"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/etHabitDescription" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:layout_gravity="end"
+        android:text="Save" />
+</LinearLayout>

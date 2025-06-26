@@ -13,6 +13,8 @@ import com.android.volley.toolbox.JsonObjectRequest;
 import com.taskshabitstracker.model.Task;
 import com.taskshabitstracker.repository.TasksRepository;
 import com.taskshabitstracker.network.VolleySingleton;
+
+import org.json.JSONException;
 import org.json.JSONObject;
 import androidx.work.Data;
 import androidx.work.OneTimeWorkRequest;
@@ -59,7 +61,7 @@ public class TasksViewModel extends AndroidViewModel {
                 isLoading.setValue(false);
                 tasks.setValue(new ArrayList<>(taskList));
                 // Schedule overdue notifications
-                scheduleOverdueNotifications(taskList);
+                //scheduleOverdueNotifications(taskList);
                 Log.d(TAG, "Tasks loaded: " + taskList.size() + " tasks");
             }
 
@@ -72,7 +74,7 @@ public class TasksViewModel extends AndroidViewModel {
         });
     }
 
-    public void toggleTaskCompletion(Task task) {
+    public void toggleTaskCompletion(Task task) throws JSONException {
         List<Task> currentTasks = tasks.getValue();
         boolean wasCompleted = task.isCompleted();
 

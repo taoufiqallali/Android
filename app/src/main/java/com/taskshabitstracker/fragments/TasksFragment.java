@@ -18,6 +18,8 @@ import com.taskshabitstracker.adapters.TaskAdapter;
 import com.taskshabitstracker.databinding.FragmentTasksBinding;
 import com.taskshabitstracker.viewmodel.TasksViewModel;
 
+import org.json.JSONException;
+
 public class TasksFragment extends Fragment {
     private static final String TAG = "TasksFragment";
 
@@ -49,7 +51,13 @@ public class TasksFragment extends Fragment {
 
     private void setupRecyclerView() {
         taskAdapter = new TaskAdapter(
-                task -> viewModel.toggleTaskCompletion(task),
+                task -> {
+                    try {
+                        viewModel.toggleTaskCompletion(task);
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
+                },
                 task -> {
                     new AlertDialog.Builder(requireContext())
                             .setTitle("Delete Task")
